@@ -83,9 +83,7 @@
                     <v-card-text>
                         <v-list v-if="loadout">
                             <v-list-item v-if="loadout.ship">
-                                <v-list-item-title>
-                                    Ship
-                                </v-list-item-title>
+                                <v-list-item-title>Ship</v-list-item-title>
                                 <v-list-item-subtitle>
                                     {{ loadout.name }}
                                 </v-list-item-subtitle>
