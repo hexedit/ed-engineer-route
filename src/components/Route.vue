@@ -23,6 +23,7 @@
                             append-icon="mdi-close"
                             readonly
                             outlined
+                            hide-details="auto"
                             :value="startSystem.name"
                             @click:append="startSystem = null"
                         ></v-text-field>
@@ -32,6 +33,7 @@
                             v-model="startInput"
                             outlined
                             clearable
+                            hide-details="auto"
                             :error-messages="startInputErrors"
                             @keypress.enter="setStart"
                         >
@@ -48,8 +50,51 @@
                 <v-card outlined elevation="2">
                     <v-toolbar dense elevation="1" color="primary">
                         <v-toolbar-title>Loadout</v-toolbar-title>
+                        <v-spacer />
+                        <add-dialog width="50%" @add="addComponent">
+                            <template v-slot:activator="{ on, attrs }">
+                                <v-btn
+                                    text
+                                    outlined
+                                    rounded
+                                    elevation="1"
+                                    v-bind="attrs"
+                                    v-on="on"
+                                >
+                                    Add
+                                </v-btn>
+                            </template>
+                        </add-dialog>
                     </v-toolbar>
                     <v-card-text>
+                        <v-list v-if="loadout">
+                            <v-list-item
+                                v-for="(co, cx) of loadout.components"
+                                :key="cx"
+                                dense
+                            >
+                                <v-list-item-title>
+                                    {{ co.module }}
+                                </v-list-item-title>
+                                <v-list-item-subtitle>
+                                    {{ co.blueprint }}
+                                </v-list-item-subtitle>
+                                <v-list-item-subtitle>
+                                    <v-chip
+                                        v-for="grade in co.grade"
+                                        :key="grade"
+                                        @click="setGrade(co, grade)"
+                                    >
+                                        {{ grade }}
+                                    </v-chip>
+                                </v-list-item-subtitle>
+                                <v-list-item-action>
+                                    <v-btn icon @click="removeComponent(co)">
+                                        <v-icon> mdi-close </v-icon>
+                                    </v-btn>
+                                </v-list-item-action>
+                            </v-list-item>
+                        </v-list>
                     </v-card-text>
                 </v-card>
             </v-col>
@@ -69,6 +114,29 @@
                         </v-btn>
                     </v-toolbar>
                     <v-timeline v-if="route.length > 0" dense align-top>
+                        <v-timeline-item v-for="r of route" :key="r.engineer">
+                            <v-row align="center">
+                                <v-col>
+                                    <strong>{{ r.engineer }}</strong>
+                                    <div class="text-caption">
+                                        {{ r.location.name }}
+                                    </div>
+                                </v-col>
+                                <v-col>
+                                    <strong>{{ r.system }}</strong>
+                                    <div class="text-caption">
+                                        {{ +r.distance.toFixed(2) }}
+                                        ({{ +r.fromStart.toFixed(2) }}) ly
+                                    </div>
+                                </v-col>
+                                <v-col>
+                                    <strong>{{ r.location.body }}</strong>
+                                    <div class="text-caption">
+                                        {{ r.location.distance }} ls
+                                    </div>
+                                </v-col>
+                            </v-row>
+                        </v-timeline-item>
                     </v-timeline>
                 </v-card>
             </v-col>
@@ -77,21 +145,45 @@
 </template>
 
 <script lang="ts">
+import {
+    blueprints,
+    engineers,
+    IEngineer,
+    ILocation,
+    ISystem,
+    ISystemCoords,
+} from '@/engineers';
+import { IComponent, ILoadout, isBlueprintAvailable } from '@/loadout';
 import { Component, Vue } from 'vue-property-decorator';
+import AddDialog from './AddDialog.vue';
 
 interface Revealed {
-    name: string;
+    engineer: string;
+    system: string;
     distance: number;
     fromStart: number;
-    starType?: string;
+    location: ILocation;
 }
 
-@Component
+@Component({
+    components: {
+        AddDialog,
+    },
+})
 export default class Route extends Vue {
 
-    startSystem: System | null = null;
+    defaultSystem: ISystem = Object.freeze({
+        name: 'Shinrarta Dezhra',
+        coords: { x: 55.71875, y: 17.59375, z: 27.15625 },
+    });
+
+    engineers = engineers;
+
+    startSystem: ISystem | null = this.defaultSystem;
     startInput = '';
     startInputErrors: string[] = [];
+
+    loadout: ILoadout | null = null;
 
     route: Revealed[] = [];
 
@@ -100,11 +192,6 @@ export default class Route extends Vue {
         if (!system) return;
         this.startInput = '';
         this.startInputErrors = [];
-
-        if (this.intermediate.findIndex((s) => s.name === system) !== -1) {
-            this.startInputErrors.push('Already exists');
-            return;
-        }
 
         this.$http
             .get('system', {
@@ -120,7 +207,7 @@ export default class Route extends Vue {
                 }
                 this.startSystem = {
                     name: response.data.name,
-                    location: response.data.coords,
+                    coords: response.data.coords,
                 };
             })
             .catch((err) => {
@@ -129,79 +216,138 @@ export default class Route extends Vue {
     }
 
     reset(): void {
-        this.startSystem = null;
+        this.startSystem = this.defaultSystem;
+        this.loadout = null;
         this.route = [];
+    }
+
+    addComponent(co: IComponent): void {
+        if (!this.loadout) {
+            this.loadout = {
+                components: [],
+            };
+        }
+        if (this.loadout.components.find((lco) => lco.uuid === co.uuid)) return;
+        this.loadout.components.push(co);
+    }
+
+    removeComponent(co: IComponent): void {
+        if (!this.loadout) return;
+        const cx = this.loadout.components.findIndex(
+            (lco) => lco.uuid === co.uuid
+        );
+        if (cx === -1) return;
+        this.loadout.components.splice(cx, 1);
+    }
+
+    setGrade(co: IComponent, grade: number): void {
+        if (!this.loadout) return;
+        const lco = this.loadout.components.find((lco) => lco.uuid === co.uuid);
+        if (!lco) return;
+        const bp = blueprints.find(
+            (bp) =>
+                bp.type === co.module &&
+                bp.name === co.blueprint &&
+                bp.grade === grade
+        );
+        if (!bp) return;
+        lco.grade = bp.grade;
+        lco.uuid = bp.uuid;
     }
 
     reveal(): void {
         if (!this.startSystem) return;
+        if (!this.loadout) return;
 
-        function distance3d(from: Location, to: Location) {
+        function distance3d(from: ISystemCoords, to: ISystemCoords) {
             return Math.sqrt(
-                Math.pow(Math.abs(to.x - from.x), 2) +
-                    Math.pow(Math.abs(to.y - from.y), 2) +
-                    Math.pow(Math.abs(to.z - from.z), 2)
+                Math.pow(to.x - from.x, 2) +
+                    Math.pow(to.y - from.y, 2) +
+                    Math.pow(to.z - from.z, 2)
             );
         }
 
-        // Calculating distance matrix between intermediate systems
-        const distMatrix = Array(this.intermediate.length)
-            .fill(null)
-            .map(() => Array(this.intermediate.length).fill(0));
-        for (const [fx, from] of this.intermediate.entries()) {
-            for (const [tx, to] of this.intermediate.entries()) {
-                distMatrix[fx][tx] = distance3d(from.location, to.location);
-            }
+        // Calculate distances from start system to each engineer
+        for (const e of this.engineers) {
+            e.system.fromStart = distance3d(
+                this.startSystem.coords,
+                e.system.coords
+            );
         }
 
-        // Calculating distance from start system to intermediates
-        const start = this.startSystem;
-        const systems = this.intermediate.map((s) => {
-            return {
-                name: s.name,
-                location: s.location,
-                fromStart: distance3d(start.location, s.location),
-                starType: s.starType,
-            };
-        });
+        // Determine which engineers we should visit
+        const toVisit: IEngineer[] = [];
+        for (const co of this.loadout.components) {
+            if (toVisit.find((ev) => isBlueprintAvailable(ev, co))) continue;
+
+            const ec = this.engineers.filter((ev) =>
+                isBlueprintAvailable(ev, co)
+            );
+            if (ec.length === 0) continue;
+
+            let vc = ec[0];
+            for (const ev of ec) {
+                if (ev.system.fromStart === undefined) continue;
+                if (vc.system.fromStart === undefined) continue;
+                if (ev.system.fromStart < vc.system.fromStart) {
+                    vc = ev;
+                }
+            }
+            toVisit.push(vc);
+        }
+        if (toVisit.length === 0) return;
+
+        // Calculate distance matrix between engineer systems
+        const distMatrix = Array(this.engineers.length)
+            .fill(null)
+            .map(() => Array(this.engineers.length).fill(0));
+        for (const [fx, from] of this.engineers.entries()) {
+            for (const [tx, to] of this.engineers.entries()) {
+                distMatrix[fx][tx] = distance3d(
+                    from.system.coords,
+                    to.system.coords
+                );
+            }
+        }
 
         const route: Revealed[] = [];
-        let next = systems[0];
+        let next = toVisit[0];
         let clearIndex = 0;
 
-        // Searching first system by minimum distance from start
-        for (const [sx, sv] of systems.entries()) {
-            if (sv.fromStart < next.fromStart) {
-                next = sv;
-                clearIndex = sx;
+        // Searching first engineer by minimum distance from start
+        for (const [ex, ev] of toVisit.entries()) {
+            if (ev.system.fromStart === undefined) continue;
+            if (next.system.fromStart === undefined) continue;
+            if (ev.system.fromStart < next.system.fromStart) {
+                next = ev;
+                clearIndex = ex;
             }
         }
 
-        let nextDistance = next.fromStart;
+        let nextDistance = next.system.fromStart || 0;
         while (true) {
             route.push({
-                name: next.name,
+                engineer: next.name,
+                system: next.system.name,
                 distance: nextDistance,
-                fromStart: next.fromStart,
-                starType: next.starType,
+                fromStart: next.system.fromStart || 0,
+                location: next.location,
             });
 
             // Remove start and check if any other left
-            systems.splice(clearIndex, 1);
-            if (systems.length === 0) break;
+            toVisit.splice(clearIndex, 1);
+            if (toVisit.length === 0) break;
 
             // Searching for next nearest intermediate
-            const sx = this.intermediate.findIndex((s) => s.name === next.name);
-            next = systems[0];
+            const sx = this.engineers.findIndex((s) => s.name === next.name);
+            next = toVisit[0];
             clearIndex = 0;
             nextDistance =
                 distMatrix[sx][
-                    this.intermediate.findIndex((s) => s.name === next.name)
+                    this.engineers.findIndex((s) => s.name === next.name)
                 ];
-            for (const [cx, cv] of systems.entries()) {
-                const nx = this.intermediate.findIndex(
-                    (s) => s.name === cv.name
-                );
+            for (const [cx, cv] of toVisit.entries()) {
+                const nx = this.engineers.findIndex((s) => s.name === cv.name);
                 if (distMatrix[sx][nx] < nextDistance) {
                     nextDistance = distMatrix[sx][nx];
                     next = cv;
@@ -211,26 +357,6 @@ export default class Route extends Vue {
         }
 
         this.route = route;
-    }
-
-    starColor(type?: string): string {
-        if (!type) return 'primary';
-        if (type.startsWith('O ')) return '#f4f5ff';
-        if (type.startsWith('B ')) return '#b6c7e3';
-        if (type.startsWith('A ')) return '#cef';
-        if (type.startsWith('F ')) return '#afc0db';
-        if (type.startsWith('G ')) return 'yellow';
-        if (type.startsWith('K ')) return 'orange';
-        if (type.startsWith('M ')) return 'red';
-        if (type.startsWith('L ')) return 'purple';
-        if (type.startsWith('T Tauri ')) return 'yellow';
-        if (type.startsWith('T ')) return 'purple';
-        if (type.startsWith('Y ')) return 'purple';
-        if (type.includes('Black')) return 'black';
-        if (type.includes('White Dwarf')) return '#486ba3';
-        if (type.includes('Neutron')) return '#1958bf';
-        if (type.includes('Wolf-Rayet')) return 'white';
-        return 'secondary';
     }
 
 }
