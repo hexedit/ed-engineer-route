@@ -54,9 +54,25 @@ export function parseCoriolis(s: string): ILoadout {
             if (co.constructor !== Object) continue;
             if (!co.blueprint) continue;
 
-            const bp = blueprints.find(
-                (bp) => bp.uuid === co.blueprint.grades[co.blueprint.grade].uuid
+            let bp = blueprints.find(
+                (bp) =>
+                    bp.uuid === co.blueprint.grades[co.blueprint.grade].uuid &&
+                    bp.grade === co.blueprint.grade
             );
+            // Workaround for Coriolis duplicated UUIDs
+            if (!bp) {
+                const sbp = blueprints.find(
+                    (bp) =>
+                        bp.uuid === co.blueprint.grades[co.blueprint.grade].uuid
+                );
+                if (!sbp) continue;
+                bp = blueprints.find(
+                    (bp) =>
+                        bp.type === sbp.type &&
+                        bp.name === sbp.name &&
+                        bp.grade === co.blueprint.grade
+                );
+            }
             if (!bp) continue;
 
             loadout.components.push({

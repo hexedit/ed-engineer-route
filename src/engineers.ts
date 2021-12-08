@@ -4760,6 +4760,14 @@ export const blueprints: IBlueprint[] = [
         uuid: '89f25da8-029a-4f3e-828d-393b36f0d7b3',
     },
     {
+        code: 'LifeSupport_Shielded',
+        name: 'Shielded',
+        type: 'Life Support',
+        modules: ['Life support'],
+        grade: 5,
+        uuid: '9f9275f1-b25e-44a5-a474-91662ec427c5',
+    },
+    {
         code: 'Weapon_RapidFire',
         name: 'Rapid fire',
         type: 'Fragment Cannon',
@@ -8391,6 +8399,7 @@ export const engineers: IEngineer[] = [
             '9a62eb66-8231-4fa9-9047-284798892e93',
             'c46b6c89-0a24-4586-865d-76ff5ae35209',
             '89f25da8-029a-4f3e-828d-393b36f0d7b3',
+            '9f9275f1-b25e-44a5-a474-91662ec427c5',
             '9b714883-e0e7-46b5-a2bb-5367f2cc9b3f',
             '9de3e096-fbfa-4694-a2e4-919494d39ee1',
             '4a5d7441-2543-4405-8587-9b969fffd3f2',
