@@ -65,9 +65,34 @@
                                 </v-btn>
                             </template>
                         </add-dialog>
+                        <import-dialog width="50%" @import="importLoadout">
+                            <template v-slot:activator="{ on, attrs }">
+                                <v-btn
+                                    text
+                                    outlined
+                                    rounded
+                                    elevation="1"
+                                    v-bind="attrs"
+                                    v-on="on"
+                                >
+                                    Import
+                                </v-btn>
+                            </template>
+                        </import-dialog>
                     </v-toolbar>
                     <v-card-text>
                         <v-list v-if="loadout">
+                            <v-list-item v-if="loadout.ship">
+                                <v-list-item-title>
+                                    Ship
+                                </v-list-item-title>
+                                <v-list-item-subtitle>
+                                    {{ loadout.name }}
+                                </v-list-item-subtitle>
+                                <v-list-item-subtitle>
+                                    {{ loadout.ship }}
+                                </v-list-item-subtitle>
+                            </v-list-item>
                             <v-list-item
                                 v-for="(co, cx) of loadout.components"
                                 :key="cx"
@@ -156,6 +181,7 @@ import {
 import { IComponent, ILoadout, isBlueprintAvailable } from '@/loadout';
 import { Component, Vue } from 'vue-property-decorator';
 import AddDialog from './AddDialog.vue';
+import ImportDialog from './ImportDialog.vue';
 
 interface Revealed {
     engineer: string;
@@ -168,6 +194,7 @@ interface Revealed {
 @Component({
     components: {
         AddDialog,
+        ImportDialog,
     },
 })
 export default class Route extends Vue {
@@ -224,6 +251,8 @@ export default class Route extends Vue {
     addComponent(co: IComponent): void {
         if (!this.loadout) {
             this.loadout = {
+                name: '',
+                ship: '',
                 components: [],
             };
         }
@@ -238,6 +267,9 @@ export default class Route extends Vue {
         );
         if (cx === -1) return;
         this.loadout.components.splice(cx, 1);
+        if (this.loadout.components.length === 0) {
+            this.loadout = null;
+        }
     }
 
     setGrade(co: IComponent, grade: number): void {
@@ -253,6 +285,17 @@ export default class Route extends Vue {
         if (!bp) return;
         lco.grade = bp.grade;
         lco.uuid = bp.uuid;
+    }
+
+    importLoadout(loadout: ILoadout): void {
+        this.loadout = {
+            name: loadout.name,
+            ship: loadout.ship,
+            components: [],
+        };
+        for (const co of loadout.components) {
+            this.addComponent(co);
+        }
     }
 
     reveal(): void {
