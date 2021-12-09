@@ -23,12 +23,13 @@
                         </v-btn-toggle>
                     </v-list-item-subtitle>
                 </v-list-item>
+                <div class="text-caption">* Grade 1 for experimental-only</div>
             </v-card-text>
             <v-divider />
             <v-card-actions>
                 <v-spacer />
                 <v-btn text @click="show = false">Cancel</v-btn>
-                <v-btn text @click="submit">Add</v-btn>
+                <v-btn color="success" @click="submit">Add</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>

@@ -138,6 +138,14 @@
                     </v-toolbar>
                     <v-timeline v-if="route.length > 0" dense align-top>
                         <v-timeline-item v-for="r of route" :key="r.engineer">
+                            <template v-slot:icon>
+                                <v-avatar>
+                                    <img
+                                        :src="engineerImg(r.engineer)"
+                                        :alt="r.engineer"
+                                    />
+                                </v-avatar>
+                            </template>
                             <v-row align="center">
                                 <v-col>
                                     <strong>{{ r.engineer }}</strong>
@@ -398,6 +406,11 @@ export default class Route extends Vue {
         }
 
         this.route = route;
+    }
+
+    engineerImg(engineer: string): string {
+        engineer = engineer.toLowerCase().replace(/\W/g, '_');
+        return require(`@/assets/engineers/${engineer}.png`);
     }
 
 }
